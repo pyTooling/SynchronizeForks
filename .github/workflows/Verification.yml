@@ -43,11 +43,14 @@ jobs:
         uses: ./.github/actions/check-outputs
         with:
           synchronized:          ${{ steps.synchronize.outputs.synchronized }}
+          created:               ${{ steps.synchronize.outputs.created }}
           skipped:               ${{ steps.synchronize.outputs.skipped }}
           errors:                ${{ steps.synchronize.outputs.errors }}
           # 1 branch of 'ghdl' + 1 branch of 'progit2' + 2 branches of 'itertree'
           expected-synchronized: 4
           # 1 commented out organisation + 1 commented out repository
+          # Dry-run reads no repository, so no branch is created.
+          expected-created:      0
           expected-skipped:      2
           expected-errors:       0
 
@@ -73,9 +76,11 @@ jobs:
         uses: ./.github/actions/check-outputs
         with:
           synchronized:          ${{ steps.synchronize.outputs.synchronized }}
+          created:               ${{ steps.synchronize.outputs.created }}
           skipped:               ${{ steps.synchronize.outputs.skipped }}
           errors:                ${{ steps.synchronize.outputs.errors }}
           expected-synchronized: 1
+          expected-created:      0
           expected-skipped:      0
           # 1 missing 'Missing.repos' + 4 malformed lines in 'ghdl.repos'
           expected-errors:       5
