@@ -194,11 +194,32 @@ runs:
         pcre="true"
         printf "%s" "x" | grep -qxP "x" 2> /dev/null || pcre="false"
 
+        # Resolve a tag to the commit it points at, and that commit's date, as '<sha> <date>'. The 'commits' endpoint
+        # dereferences an annotated tag, which is why it's asked by tag name: the tag ref's object SHA is the tag
+        # object for an annotated tag, and the endpoint rejects it.
+        resolveTag() {
+          gh api "repos/${1}/commits/${2}" --jq '.sha + " " + .commit.committer.date' 2> /dev/null
+        }
+
+        # '2026-09-10T21:37:37Z' -> '2026-09-10 21:37:37 UTC'. Done with parameter expansion rather than 'date', which
+        # parses the input only in its GNU flavour.
+        formatDate() {
+          local value="${1}"
+
+          if [[ -z "${value}" ]]; then
+            printf "%s" "date unknown"
+          else
+            value="${value/T/ }"
+            printf "%s UTC" "${value%Z}"
+          fi
+        }
+
         # Synchronize tags from the upstream repository into the fork. 'gh repo sync' knows branches only, so the tag
         # refs are compared and created through the API. A tag that moved upstream is reported, never rewritten.
         synchronizeTags() {
           local upstream="${1}" fork="${2}" patterns="${3}"
           local pattern expression name sha forkSHA upstreamTags forkTags matchedTags messages upToDate=0
+          local forkCommit forkDate upstreamCommit upstreamDate
           local -a patternList=() upstreamTagNames=()
           local -A upstreamTagSHAs=() forkTagSHAs=()
 
@@ -262,8 +283,19 @@ runs:
                 upToDate=$((upToDate + 1))
               else
                 # Rewriting a tag would discard whatever the fork's tag points at, so it's reported and left alone.
-                printf "    ☢️ %s\n" "${ANSI_LIGHT_RED}${name} — moved in '${upstream}' (fork ${forkSHA:0:7}, upstream ${sha:0:7})${ANSI_NOCOLOR}"
-                printf "::error title=%s::%s\n" "Tag ${fork}:${name}" "Tag '${name}' points at '${forkSHA}' in the fork, but at '${sha}' in '${upstream}'. A moved tag isn't rewritten."
+                # Both sides are resolved to a commit, so the report says what each tag points at and since when.
+                read -r forkCommit forkDate <<< "$(resolveTag "${fork}" "${name}")"
+                read -r upstreamCommit upstreamDate <<< "$(resolveTag "${upstream}" "${name}")"
+                forkCommit="${forkCommit:-${forkSHA}}"
+                upstreamCommit="${upstreamCommit:-${sha}}"
+
+                printf "    ☢️ %s\n" "${ANSI_LIGHT_RED}${name} — moved in '${upstream}'${ANSI_NOCOLOR}"
+                printf "      ↪ %-10s%s  %s\n" "fork:"     "${forkCommit:0:7}"     "$(formatDate "${forkDate}")"
+                printf "      ↪ %-10s%s  %s\n" "upstream:" "${upstreamCommit:0:7}" "$(formatDate "${upstreamDate}")"
+                if [[ "${forkCommit}" == "${upstreamCommit}" ]]; then
+                  printf "      ↪ %s\n" "${ANSI_LIGHT_YELLOW}same commit — the tag object itself was recreated${ANSI_NOCOLOR}"
+                fi
+                printf "::error title=%s::%s\n" "Tag ${fork}:${name}" "Tag '${name}' points at commit ${forkCommit} ($(formatDate "${forkDate}")) in the fork, but at ${upstreamCommit} ($(formatDate "${upstreamDate}")) in '${upstream}'. A moved tag isn't rewritten."
                 failures+=("☢️ ${upstream} ⇒ ${fork}:${name} (moved)")
                 errors=$((errors + 1))
               fi

@@ -232,9 +232,20 @@ For every matching tag of the upstream repository:
 * the fork has it, at the same object → counted as up to date, reported as one line per repository:  
   `🟰 12 tag(s) already up to date`
 * the fork has it, at a **different** object → the tag moved upstream. It's reported as an error and **left alone**,
-  because rewriting it would silently discard whatever the fork's tag points at:  
-  `☢️ v1.0.0 — moved in 'OSVVM/OSVVM' (fork 90e6af7, upstream d3d07ba)`  
+  because rewriting it would silently discard whatever the fork's tag points at. Both sides are resolved to the commit
+  they point at, with its date, so the report says what each tag means and which of the two is older:
+
+  ```
+      ☢️ v1.0.0 — moved in 'OSVVM/OSVVM'
+        ↪ fork:     90e6af7  2024-03-11 14:22:05 UTC
+        ↪ upstream: d3d07ba  2025-07-02 09:41:18 UTC
+  ```
+
   The run continues with the next tag. Delete the tag in the fork to let the next run recreate it.
+
+  An annotated tag is dereferenced, so the commit shown is the one the tag ultimately points at rather than the tag
+  object. When both sides resolve to the *same* commit, the tag object itself was recreated — a re-signed or
+  re-worded tag over unchanged code — and the report says so.
 
 Tags are never deleted from the fork, and a tag that exists only in the fork is left untouched.
 
