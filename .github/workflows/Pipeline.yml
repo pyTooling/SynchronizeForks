@@ -15,13 +15,19 @@
 # WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
 # COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 # OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-name: Verification of the Synchronize Forks Action
+name: Pipeline
+run-name: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
 
 on:
   push:
+  # 'TagReleaseCommit' dispatches this workflow on the tag it created; a tag pushed by the automatic GITHUB_TOKEN
+  # doesn't trigger a workflow on its own.
   workflow_dispatch:
 
 jobs:
+  Prepare:
+    uses: pyTooling/Actions/.github/workflows/PrepareJob.yml@r8
+
   DryRun:
     name: 🐧 Dry-run with a valid configuration
     runs-on: ubuntu-26.04
@@ -128,3 +134,35 @@ jobs:
             printf "::error title=%s::%s\n" "FailOnError" "The action's outcome is '${OUTCOME}', but 'failure' was expected."
             exit 1
           fi
+
+  # A merge commit on 'main' is a release: tag it with the release pull-request's title and start this pipeline again
+  # on that tag.
+  TriggerTaggedRelease:
+    uses: pyTooling/Actions/.github/workflows/TagReleaseCommit.yml@r8
+    needs:
+      - Prepare
+      - DryRun
+      - ErrorHandling
+      - FailOnError
+    if: needs.Prepare.outputs.is_release_commit == 'true'
+    permissions:
+      contents: write   # required to create the tag
+      actions:  write   # required to start the tagged pipeline
+    with:
+      version:  ${{ needs.Prepare.outputs.version }}
+      auto_tag: ${{ needs.Prepare.outputs.is_release_commit }}
+    secrets: inherit
+
+  # The tagged run publishes the release page. Its description is the body of the pull-request that produced the
+  # tagged merge commit, which 'PublishReleaseNotes' looks up itself.
+  ReleasePage:
+    uses: pyTooling/Actions/.github/workflows/PublishReleaseNotes.yml@r8
+    needs:
+      - Prepare
+      - DryRun
+      - ErrorHandling
+      - FailOnError
+    if: needs.Prepare.outputs.is_release_tag == 'true'
+    with:
+      tag: ${{ needs.Prepare.outputs.version }}
+    secrets: inherit
