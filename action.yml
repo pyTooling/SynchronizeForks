@@ -242,13 +242,13 @@ runs:
           done <<< "${forkTags}"
 
           if [[ ${#upstreamTagNames[@]} -eq 0 ]]; then
-            printf "    🏷️ %s\n" "${ANSI_LIGHT_YELLOW}'${upstream}' has no tags${ANSI_NOCOLOR}"
+            printf "    ℹ️ %s\n" "${ANSI_LIGHT_YELLOW}'${upstream}' has no tags${ANSI_NOCOLOR}"
             return 0
           fi
 
           matchedTags="$(printf "%s\n" "${upstreamTagNames[@]}" | grep -xP "${expression}")"
           if [[ -z "${matchedTags}" ]]; then
-            printf "    🏷️ %s\n" "${ANSI_LIGHT_YELLOW}no tag of '${upstream}' matches '${patterns}'${ANSI_NOCOLOR}"
+            printf "    ℹ️ %s\n" "${ANSI_LIGHT_YELLOW}no tag of '${upstream}' matches '${patterns}'${ANSI_NOCOLOR}"
             return 0
           fi
 
@@ -262,9 +262,9 @@ runs:
                 upToDate=$((upToDate + 1))
               else
                 # Rewriting a tag would discard whatever the fork's tag points at, so it's reported and left alone.
-                printf "    ❌ %s\n" "${ANSI_LIGHT_RED}${name} — moved in '${upstream}' (fork ${forkSHA:0:7}, upstream ${sha:0:7})${ANSI_NOCOLOR}"
+                printf "    ☢️ %s\n" "${ANSI_LIGHT_RED}${name} — moved in '${upstream}' (fork ${forkSHA:0:7}, upstream ${sha:0:7})${ANSI_NOCOLOR}"
                 printf "::error title=%s::%s\n" "Tag ${fork}:${name}" "Tag '${name}' points at '${forkSHA}' in the fork, but at '${sha}' in '${upstream}'. A moved tag isn't rewritten."
-                failures+=("${upstream} ⇒ ${fork}:${name} (moved)")
+                failures+=("☢️ ${upstream} ⇒ ${fork}:${name} (moved)")
                 errors=$((errors + 1))
               fi
               continue
@@ -275,7 +275,7 @@ runs:
               printf "    ❌ %s\n" "${ANSI_LIGHT_RED}${name} — couldn't be created from ${upstream}@${sha:0:7}${ANSI_NOCOLOR}"
               printf "%s\n" "$(sed 's/^/    ↪ /g' <<< "${messages}")"
               printf "::error title=%s::%s\n" "Tag ${fork}:${name}" "${messages//$'\n'/%0A}"
-              failures+=("${upstream} ⇒ ${fork}:${name}")
+              failures+=("❌ ${upstream} ⇒ ${fork}:${name}")
               errors=$((errors + 1))
               continue
             fi
@@ -285,7 +285,7 @@ runs:
           done <<< "${matchedTags}"
 
           if [[ ${upToDate} -gt 0 ]]; then
-            printf "    🏷️ %s\n" "${upToDate} tag(s) already up to date"
+            printf "    🟰 %s\n" "${upToDate} tag(s) already up to date"
           fi
           return 0
         }
@@ -376,14 +376,14 @@ runs:
                   if [[ "${CREATE_BRANCHES}" == "true" ]]; then
                     createBranch "${upstream}" "${TARGET_ORGANISATION}/${repository}" "${branch}"
                     if [[ $? -ne 0 ]]; then
-                      failures+=("${upstream} ⇒ ${TARGET_ORGANISATION}/${repository}:${branch}")
+                      failures+=("❌ ${upstream} ⇒ ${TARGET_ORGANISATION}/${repository}:${branch}")
                       errors=$((errors + 1))
                     fi
                   else
                     printf "    ❌ %s\n" "${ANSI_LIGHT_RED}${branch} — doesn't exist in the fork${ANSI_NOCOLOR}"
                     printf "    ↪ %s\n" "${ANSI_LIGHT_RED}enable 'create-missing-branches' to create it${ANSI_NOCOLOR}"
                     printf "::error title=%s::%s\n" "Synchronize ${upstream} ⇒ ${TARGET_ORGANISATION}/${repository}:${branch}" "Branch '${branch}' doesn't exist in the fork. Enable 'create-missing-branches' to create it from '${upstream}'."
-                    failures+=("${upstream} ⇒ ${TARGET_ORGANISATION}/${repository}:${branch}")
+                    failures+=("❌ ${upstream} ⇒ ${TARGET_ORGANISATION}/${repository}:${branch}")
                     errors=$((errors + 1))
                   fi
                   continue
@@ -398,7 +398,7 @@ runs:
                   printf "%s\n" "$(sed 's/^/    ↪ /g' <<< "${messages}")"
                   # A workflow command is a single line, so embedded newlines are escaped as '%0A'.
                   printf "::error title=%s::%s\n" "Synchronize ${upstream} ⇒ ${TARGET_ORGANISATION}/${repository}:${branch}" "${messages//$'\n'/%0A}"
-                  failures+=("${upstream} ⇒ ${TARGET_ORGANISATION}/${repository}:${branch}")
+                  failures+=("❌ ${upstream} ⇒ ${TARGET_ORGANISATION}/${repository}:${branch}")
                   errors=$((errors + 1))
                 fi
               done
@@ -409,7 +409,7 @@ runs:
                 else
                   synchronizeTags "${upstream}" "${TARGET_ORGANISATION}/${repository}" "${tagPatterns}"
                   if [[ $? -ne 0 ]]; then
-                    failures+=("${upstream} ⇒ ${TARGET_ORGANISATION}/${repository} (tags)")
+                    failures+=("❌ ${upstream} ⇒ ${TARGET_ORGANISATION}/${repository} (tags)")
                     errors=$((errors + 1))
                   fi
                 fi
@@ -431,7 +431,7 @@ runs:
         if [[ ${#failures[@]} -gt 0 ]]; then
           printf "%s\n" ""
           printf "%s\n"   "${ANSI_CYAN}Not synchronized:${ANSI_NOCOLOR}"
-          printf "  ❌ %s\n" "${failures[@]}"
+          printf "  %s\n" "${failures[@]}"
         fi
 
         printf "synchronized=%s\n" "${synchronized}" >> "${GITHUB_OUTPUT}"
