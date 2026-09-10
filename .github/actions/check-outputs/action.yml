@@ -26,6 +26,10 @@ inputs:
     description: Actual number of created branches.
     type: string
     required: true
+  created-tags:
+    description: Actual number of created tags.
+    type: string
+    required: true
   skipped:
     description: Actual number of skipped entries.
     type: string
@@ -40,6 +44,10 @@ inputs:
     required: true
   expected-created:
     description: Expected number of created branches.
+    type: string
+    required: true
+  expected-created-tags:
+    description: Expected number of created tags.
     type: string
     required: true
   expected-skipped:
@@ -59,10 +67,12 @@ runs:
       env:
         SYNCHRONIZED:          ${{ inputs.synchronized }}
         CREATED:               ${{ inputs.created }}
+        CREATED_TAGS:          ${{ inputs.created-tags }}
         SKIPPED:               ${{ inputs.skipped }}
         ERRORS:                ${{ inputs.errors }}
         EXPECTED_SYNCHRONIZED: ${{ inputs.expected-synchronized }}
         EXPECTED_CREATED:      ${{ inputs.expected-created }}
+        EXPECTED_CREATED_TAGS: ${{ inputs.expected-created-tags }}
         EXPECTED_SKIPPED:      ${{ inputs.expected-skipped }}
         EXPECTED_ERRORS:       ${{ inputs.expected-errors }}
       run: |
@@ -89,6 +99,7 @@ runs:
 
         checkOutput "synchronized" "${SYNCHRONIZED}" "${EXPECTED_SYNCHRONIZED}"
         checkOutput "created"      "${CREATED}"      "${EXPECTED_CREATED}"
+        checkOutput "created-tags" "${CREATED_TAGS}" "${EXPECTED_CREATED_TAGS}"
         checkOutput "skipped"      "${SKIPPED}"      "${EXPECTED_SKIPPED}"
         checkOutput "errors"       "${ERRORS}"       "${EXPECTED_ERRORS}"
 
