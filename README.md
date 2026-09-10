@@ -121,7 +121,7 @@ Every organisation becomes a collapsible group, and each fork reports the branch
     ✅ gh repo sync PLC2/OSVVM --branch main
     ✅ gh repo sync PLC2/OSVVM --branch dev
     🏷️ v2.1.0 — created from OSVVM/OSVVM@a1b2c3d
-    🏷️ 12 tag(s) already up to date
+    🟰 12 tag(s) already up to date
   📂 OSVVM/AXI4 ⇒ PLC2/OSVVM-AXI4
     🌱 dev — created from OSVVM/AXI4@a1b2c3d
   📂 OSVVM/Ethernet ⇒ PLC2/OSVVM-Ethernet
@@ -139,6 +139,22 @@ Summary:
 Not synchronized:
   ❌ OSVVM/Ethernet ⇒ PLC2/OSVVM-Ethernet:main
 ```
+
+### The Symbols
+
+| Symbol | Meaning                                                        |
+|:------:|----------------------------------------------------------------|
+| 🏭     | An organisation from the index file — a collapsible log group.  |
+| 📂     | A fork, and the upstream repository it follows.                 |
+| ✅     | A branch was synchronized.                                      |
+| 🌱     | A branch was created in the fork.                               |
+| 🏷️     | A tag was created in the fork.                                  |
+| 🟰     | Tags that already point at the same object as upstream.         |
+| ☢️     | A tag moved upstream — refused, see [below](#tag-synchronization). |
+| ℹ️     | Nothing to do: no tags upstream, or no tag matched.             |
+| 🚫     | A commented out organisation or fork.                           |
+| 🚧     | Dry-run: what would have happened.                              |
+| ❌     | An error.                                                       |
 
 ### Input Parameters
 
@@ -213,10 +229,11 @@ For every matching tag of the upstream repository:
 
 * the fork doesn't have it → it's created, pointing at the same object:  
   `🏷️ v2.1.0 — created from OSVVM/OSVVM@a1b2c3d`
-* the fork has it, at the same object → counted as up to date, reported as one line per repository,
+* the fork has it, at the same object → counted as up to date, reported as one line per repository:  
+  `🟰 12 tag(s) already up to date`
 * the fork has it, at a **different** object → the tag moved upstream. It's reported as an error and **left alone**,
   because rewriting it would silently discard whatever the fork's tag points at:  
-  `❌ v1.0.0 — moved in 'OSVVM/OSVVM' (fork 90e6af7, upstream d3d07ba)`  
+  `☢️ v1.0.0 — moved in 'OSVVM/OSVVM' (fork 90e6af7, upstream d3d07ba)`  
   The run continues with the next tag. Delete the tag in the fork to let the next run recreate it.
 
 Tags are never deleted from the fork, and a tag that exists only in the fork is left untouched.
