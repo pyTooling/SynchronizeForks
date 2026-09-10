@@ -15,9 +15,23 @@ the algorithm; a consuming repository keeps only its configuration files.
 
 ## Usage
 
-The token needs write access to the contents of every listed fork, so a workflow's automatic `GITHUB_TOKEN` is not
-sufficient — it's scoped to the repository the workflow is running in. Store a personal access token as a repository
-secret instead.
+A repository using this action contains a workflow and its configuration files:
+
+```
+SynchronizeForks/
+├── .github/
+│   └── workflows/
+│       └── Synchronize.yml
+├── .ALL.repos
+├── OSVVM.repos
+└── _Others.repos
+```
+
+### The Workflow
+
+The action needs write access to the contents of every listed fork, so a workflow's automatic `GITHUB_TOKEN` is **not**
+sufficient — it's scoped to the repository the workflow is running in. Create a personal access token with that access
+and store it as a repository secret (`GH_TOKEN` below).
 
 ```yaml
 name: Synchronize forked repositories
@@ -25,7 +39,7 @@ name: Synchronize forked repositories
 on:
   push:
   schedule:
-    # Every day at 05:50 (UTC+1)
+    # Every day at 05:50 (UTC+1) — check the upstream repositories for updates.
     - cron: '50 4 * * *'
 
 jobs:
@@ -41,84 +55,138 @@ jobs:
           github-token: ${{ secrets.GH_TOKEN }}
 ```
 
-By default, the forks are expected in the namespace the workflow is running in (`${{ github.repository_owner }}`) and
-the configuration files are read from the repository's root directory.
+That is the whole workflow. The forks are expected in the namespace the workflow is running in
+(`${{ github.repository_owner }}`) and the configuration files are read from the repository's root directory; see
+[Input Parameters](#input-parameters) to change either.
 
 > [!NOTE]
 > No version tag has been released yet, so the examples reference `@main`. Once released, pin a version tag as usual.
 
-### Input Parameters
+### The Entry Point: `.ALL.repos`
 
-| Parameter             | Required | Default                            | Description                                                                                                                          |
-|-----------------------|:--------:|------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|
-| `github-token`        |  **yes** |                                    | GitHub token used to synchronize the forked repositories. It needs write access to the contents of every listed fork.                 |
-| `target-organisation` |    no    | `${{ github.repository_owner }}`   | GitHub organisation or user account owning the forked repositories.                                                                  |
-| `directory`           |    no    | `'.'`                              | Directory containing the configuration files.                                                                                        |
-| `index-file`          |    no    | `'.ALL.repos'`                     | Name of the index file listing the organisations to be synchronized.                                                                 |
-| `force`               |    no    | `false`                            | Hard reset the fork's branch to the upstream branch, discarding commits that aren't in the upstream repository.                       |
-| `dry-run`             |    no    | `false`                            | Print the synchronization commands instead of running them.                                                                          |
-| `fail-on-error`       |    no    | `true`                             | Let the action fail if at least one error was counted.                                                                               |
+The index file is the entry point. It lists the **upstream organisations** to be synchronized, one per line. For each
+listed name, a matching `<organisation>.repos` file is read from the same directory — so `OSVVM` below reads
+`OSVVM.repos`.
 
-### Output Parameters
+A line starting with `#` is a comment and skips that organisation, including its whole file. Empty lines are ignored.
 
-| Parameter      | Description                                                                     |
-|----------------|---------------------------------------------------------------------------------|
-| `synchronized` | Number of successfully synchronized branches.                                   |
-| `skipped`      | Number of skipped organisations and repositories (commented out lines).         |
-| `errors`       | Number of counted errors.                                                       |
-
-In dry-run mode, `synchronized` counts the branches that *would* have been synchronized.
-
-## Configuration File Formats
-
-The `.ALL.repos` file is the entry point. It lists one upstream organisation per line, or a comment starting with `#`.
-When many single repositories from various organisations or private accounts are synchronized, an `_Others` or `_Misc`
-entry is recommended.
-
-**Example:**
 ```
-ghdl
+# Upstream organisations, one per line. Each needs a matching '<organisation>.repos' file.
 OSVVM
-#Skipped for now
+VHDL
+
+# Single repositories from various organisations and private accounts.
 _Others
 ```
 
-Each listed organisation has a matching `<organisation>.repos` file containing one repository per line, or a comment
-starting with `#`. A repository line has the following format:  
+The last entry is a convention rather than a rule: single repositories from many different accounts don't deserve one
+file each, so they are collected in an `_Others` (or `_Misc`) file.
+
+### An Organisation File: `OSVVM.repos`
+
+Each of these files lists one fork per line, in the format:
+
 `<upstream>=<fork>:<branches>`
 
-* `<upstream>` is formatted like `<organisation>/<repository>` or `<privateAccount>/<repository>`.  
-  It documents where the fork came from; the upstream repository itself is resolved by `gh repo sync` from the fork.
-* `<fork>` is formatted like `<repository>`.  
-  An organisation or account is not required, because it's given by the `target-organisation` parameter.
-* `<branches>` is a comma separated list of branch names like `<branch>,<branch>,<branch>`.
+| Element      | Format                                            | Meaning                                                                                                                                 |
+|--------------|---------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| `<upstream>` | `<organisation>/<repository>`                     | The repository the fork was created from. It's reported in the action's progress and error output, so it should name the real upstream.  |
+| `<fork>`     | `<repository>`                                    | The forked repository. No organisation or account, because that's the `target-organisation` parameter.                                   |
+| `<branches>` | `<branch>[,<branch>,...]`                         | Comma separated list of branches to synchronize.                                                                                        |
 
-**Example:**
+A line starting with `#` is a comment and skips that fork. Empty lines are ignored.
+
 ```
 OSVVM/OSVVM=OSVVM:main,dev
+OSVVM/OSVVM-Scripts=OSVVM-Scripts:main,dev
 OSVVM/AXI4=OSVVM-AXI4:main,dev
+OSVVM/Ethernet=OSVVM-Ethernet:main
 #OSVVM/AvalonST=OSVVM-AvalonST:main
 ```
 
-Empty lines are ignored. Both Unix and Windows line endings are accepted, and a missing final newline doesn't drop the
-last entry.
+Read for the `PLC2` namespace, those five lines synchronize `PLC2/OSVVM` (branches `main` and `dev`) from
+`OSVVM/OSVVM`, `PLC2/OSVVM-Scripts` from `OSVVM/OSVVM-Scripts`, `PLC2/OSVVM-AXI4` from `OSVVM/AXI4`,
+`PLC2/OSVVM-Ethernet` (branch `main` only) from `OSVVM/Ethernet`, and skip `PLC2/OSVVM-AvalonST`.
+
+Both Unix and Windows line endings are accepted, and a missing final newline doesn't drop the last entry.
+
+### The Log
+
+Every organisation becomes a collapsible group, and each fork reports the branches it synchronized:
+
+```
+🏭 OSVVM
+  📂 OSVVM/OSVVM ⇒ PLC2/OSVVM
+    ✅ gh repo sync PLC2/OSVVM --branch main
+    ✅ gh repo sync PLC2/OSVVM --branch dev
+  📂 OSVVM/AXI4 ⇒ PLC2/OSVVM-AXI4
+    ❌ gh repo sync PLC2/OSVVM-AXI4 --branch dev
+    ↪ failed to sync: HTTP 404: Not Found
+  🚫 #OSVVM/AvalonST=OSVVM-AvalonST:main
+
+Summary:
+  Synchronized branches:  2
+  Skipped entries:        1
+  Errors:                 1
+
+Not synchronized:
+  ❌ OSVVM/AXI4 ⇒ PLC2/OSVVM-AXI4:dev
+```
+
+### Input Parameters
+
+| Parameter             | Required | Default                          | Description                                                                                                          |
+|-----------------------|:--------:|----------------------------------|------------------------------------------------------------------------------------------------------------------------|
+| `github-token`        |  **yes** |                                  | GitHub token used to synchronize the forked repositories. It needs write access to the contents of every listed fork. |
+| `target-organisation` |    no    | `${{ github.repository_owner }}` | GitHub organisation or user account owning the forked repositories.                                                  |
+| `directory`           |    no    | `'.'`                            | Directory containing the configuration files.                                                                        |
+| `index-file`          |    no    | `'.ALL.repos'`                   | Name of the index file listing the organisations to be synchronized.                                                 |
+| `force`               |    no    | `false`                          | Hard reset the fork's branch to the upstream branch, discarding commits that aren't in the upstream repository.       |
+| `dry-run`             |    no    | `false`                          | Print the synchronization commands instead of running them.                                                          |
+| `fail-on-error`       |    no    | `true`                           | Let the action fail if at least one error was counted.                                                               |
+
+### Output Parameters
+
+| Parameter      | Description                                                             |
+|----------------|---------------------------------------------------------------------------|
+| `synchronized` | Number of successfully synchronized branches.                           |
+| `skipped`      | Number of skipped organisations and repositories (commented out lines). |
+| `errors`       | Number of counted errors.                                               |
+
+In dry-run mode, `synchronized` counts the branches that *would* have been synchronized.
 
 ## Error Handling
 
-Each of these is reported as a GitHub Actions error annotation and counted, and the action fails at the end unless
+Each of these is counted, reported as a GitHub Actions error annotation, and lets the action fail at the end — unless
 `fail-on-error` is disabled:
 
 * the index file doesn't exist,
 * an `<organisation>.repos` file listed in the index file doesn't exist,
-* a repository line is malformed (no `=` or no `:`),
-* `gh repo sync` fails for a fork's branch — its output is quoted below the command and in the annotation.
+* a repository line is malformed — no `=`, no `:`, or an empty `<upstream>`, `<fork>` or branch list,
+* `gh repo sync` fails for a fork's branch. Its output is quoted below the failed command, and the annotation names the
+  upstream repository, the fork and the branch.
 
-A failing repository doesn't stop the run: every other fork is still synchronized.
+A failing fork doesn't stop the run: every other fork is still synchronized, and the summary lists what wasn't.
+
+## Users
+
+| Repository                                                                | Namespace   | Synchronizes                                        |
+|---------------------------------------------------------------------------|-------------|-----------------------------------------------------|
+| [Paebbels/SynchronizeForks](https://github.com/Paebbels/SynchronizeForks) | `Paebbels`  | GHDL, OSVVM, VHDL and various single repositories.  |
+| [VHDL/Synchronize](https://github.com/VHDL/Synchronize)                   | `VHDL`      | OSVVM.                                              |
+| [PLC2/Synchronize](https://github.com/PLC2/Synchronize)                   | `PLC2`      | OSVVM, VHDL, and vendor and infrastructure forks.   |
+
+Each of them still carries its own copy of the inline script and is converted to this action once a version is
+released.
 
 ## Migrating an existing repository
 
-A repository that carries the inline script keeps its `*.repos` files, and replaces the two script steps of its
-workflow with the `uses:` step shown above. The configuration file format is unchanged.
+A repository that carries the inline script keeps its `*.repos` files and replaces the two script steps of its workflow
+with the `uses:` step shown above. `targetOrganisation=<name>`, the constant that had to be edited in every copy,
+becomes the `target-organisation` parameter — and can be dropped where the namespace is the one the workflow runs in.
+
+The configuration file format is unchanged. One field is worth a look while converting: `<upstream>` is reported in the
+progress and error output, so a copied placeholder there makes the log name the wrong repository.
 
 ## Dependencies
 

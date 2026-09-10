@@ -138,6 +138,7 @@ runs:
         synchronized=0
         skipped=0
         errors=0
+        failures=()
 
         if [[ ! -f "${INDEX_FILE}" ]]; then
           printf "%s\n" "${ANSI_LIGHT_RED}Index file '${INDEX_FILE}' not found in '$(pwd)'.${ANSI_NOCOLOR}"
@@ -184,7 +185,12 @@ runs:
               fi
 
               # A repository line is formatted '<upstream>=<fork>:<branch>[,<branch>...]'.
-              if [[ "${line}" != *"="* || "${line#*=}" != *":"* ]]; then
+              upstream="${line%%=*}"
+              fork="${line#*=}"
+              repository="${fork%%:*}"
+              branchList="${fork#*:}"
+
+              if [[ "${line}" != *"="* || "${fork}" != *":"* || -z "${upstream}" || -z "${repository}" || -z "${branchList//,/}" ]]; then
                 printf "  ❌ %s\n" "${ANSI_LIGHT_RED}${line}${ANSI_NOCOLOR}"
                 printf "    ↪ %s\n" "${ANSI_LIGHT_RED}Expected format: <upstream>=<fork>:<branch>[,<branch>]${ANSI_NOCOLOR}"
                 printf "::error title=%s::%s\n" "pyTooling/SynchronizeForks" "Malformed line in '${repositoryFile}': '${line}'."
@@ -192,10 +198,7 @@ runs:
                 continue
               fi
 
-              upstream="${line%%=*}"
-              fork="${line#*=}"
-              repository="${fork%%:*}"
-              IFS="," read -r -a branches <<< "${fork#*:}"
+              IFS="," read -r -a branches <<< "${branchList}"
 
               printf "  📂 %s ⇒ %s\n" "${upstream}" "${TARGET_ORGANISATION}/${repository}"
 
@@ -219,7 +222,8 @@ runs:
                   printf "    ❌ %s\n" "${ANSI_LIGHT_RED}${syncCommand[*]}${ANSI_NOCOLOR}"
                   printf "%s\n" "$(sed 's/^/    ↪ /g' <<< "${messages}")"
                   # A workflow command is a single line, so embedded newlines are escaped as '%0A'.
-                  printf "::error title=%s::%s\n" "Synchronize ${TARGET_ORGANISATION}/${repository}" "${messages//$'\n'/%0A}"
+                  printf "::error title=%s::%s\n" "Synchronize ${upstream} ⇒ ${TARGET_ORGANISATION}/${repository}:${branch}" "${messages//$'\n'/%0A}"
+                  failures+=("${upstream} ⇒ ${TARGET_ORGANISATION}/${repository}:${branch}")
                   errors=$((errors + 1))
                 fi
               done
@@ -234,6 +238,12 @@ runs:
         printf "  %-24s%s\n" "Synchronized branches:" "${synchronized}"
         printf "  %-24s%s\n" "Skipped entries:"       "${skipped}"
         printf "  %-24s%s\n" "Errors:"                "${errors}"
+
+        if [[ ${#failures[@]} -gt 0 ]]; then
+          printf "%s\n" ""
+          printf "%s\n"   "${ANSI_CYAN}Not synchronized:${ANSI_NOCOLOR}"
+          printf "  ❌ %s\n" "${failures[@]}"
+        fi
 
         printf "synchronized=%s\n" "${synchronized}" >> "${GITHUB_OUTPUT}"
         printf "skipped=%s\n"      "${skipped}"      >> "${GITHUB_OUTPUT}"
