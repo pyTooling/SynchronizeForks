@@ -55,10 +55,20 @@ inputs:
     type: boolean
     required: false
     default: false
+  create-missing-branches:
+    description: |
+      Create a branch that is listed in an '<organisation>.repos' file, but doesn't exist in the fork yet, from the
+      upstream repository's branch head. 'gh repo sync' can only update an existing branch.
+      The branch head is read from '<upstream>', so this is disabled by default: a stale or copy-pasted upstream in a
+      configuration file would create the branch from the wrong repository.
+    type: boolean
+    required: false
+    default: false
   dry-run:
     description: |
       Print the synchronization commands instead of running them.
-      Branches that would have been synchronized are counted in the 'synchronized' output parameter.
+      Branches that would have been synchronized are counted in the 'synchronized' output parameter. No repository is
+      read or written, so a missing branch isn't detected in this mode.
     type: boolean
     required: false
     default: false
@@ -74,6 +84,10 @@ outputs:
     description: |
       Number of successfully synchronized branches.
     value: ${{ steps.synchronize.outputs.synchronized }}
+  created:
+    description: |
+      Number of branches created in a fork.
+    value: ${{ steps.synchronize.outputs.created }}
   skipped:
     description: |
       Number of skipped organisations and repositories (commented out lines).
@@ -114,6 +128,7 @@ runs:
         TARGET_ORGANISATION: ${{ inputs.target-organisation }}
         INDEX_FILE:          ${{ inputs.index-file }}
         FORCE:               ${{ inputs.force }}
+        CREATE_BRANCHES:     ${{ inputs.create-missing-branches }}
         DRY_RUN:             ${{ inputs.dry-run }}
         FAIL_ON_ERROR:       ${{ inputs.fail-on-error }}
       run: |
@@ -137,9 +152,37 @@ runs:
         printf "%s\n" ""
 
         synchronized=0
+        created=0
         skipped=0
         errors=0
         failures=()
+
+        # Create a branch in the fork, pointing at the upstream repository's branch head. GitHub keeps a fork and its
+        # upstream in one object network, so the upstream's commit is addressable through the fork and no clone,
+        # fetch or push is involved. 'gh repo sync' can only fast-forward a branch that already exists.
+        createBranch() {
+          local upstream="${1}" fork="${2}" branch="${3}"
+          local sha messages
+
+          sha="$(gh api "repos/${upstream}/git/ref/heads/${branch}" --jq '.object.sha' 2>&1)"
+          if [[ $? -ne 0 ]]; then
+            printf "    ❌ %s\n" "${ANSI_LIGHT_RED}${branch} — exists neither in the fork nor in '${upstream}'${ANSI_NOCOLOR}"
+            printf "::error title=%s::%s\n" "Create ${fork}:${branch}" "Branch '${branch}' exists neither in the fork '${fork}' nor in the upstream repository '${upstream}'."
+            return 1
+          fi
+
+          messages="$(gh api --method POST "repos/${fork}/git/refs" --field "ref=refs/heads/${branch}" --field "sha=${sha}" 2>&1)"
+          if [[ $? -ne 0 ]]; then
+            printf "    ❌ %s\n" "${ANSI_LIGHT_RED}${branch} — couldn't be created from ${upstream}@${sha:0:7}${ANSI_NOCOLOR}"
+            printf "%s\n" "$(sed 's/^/    ↪ /g' <<< "${messages}")"
+            printf "::error title=%s::%s\n" "Create ${fork}:${branch}" "${messages//$'\n'/%0A}"
+            return 1
+          fi
+
+          printf "    🌱 %s\n" "${ANSI_LIGHT_GREEN}${branch} — created from ${upstream}@${sha:0:7}${ANSI_NOCOLOR}"
+          created=$((created + 1))
+          return 0
+        }
 
         if [[ ! -f "${INDEX_FILE}" ]]; then
           printf "%s\n" "${ANSI_LIGHT_RED}Index file '${INDEX_FILE}' not found in '$(pwd)'.${ANSI_NOCOLOR}"
@@ -215,6 +258,25 @@ runs:
                   continue
                 fi
 
+                # A branch that doesn't exist in the fork can't be synchronized — 'gh repo sync' updates a branch, it
+                # doesn't create one. Create it here, so the next run synchronizes it like any other branch.
+                if ! gh api "repos/${TARGET_ORGANISATION}/${repository}/git/ref/heads/${branch}" > /dev/null 2>&1; then
+                  if [[ "${CREATE_BRANCHES}" == "true" ]]; then
+                    createBranch "${upstream}" "${TARGET_ORGANISATION}/${repository}" "${branch}"
+                    if [[ $? -ne 0 ]]; then
+                      failures+=("${upstream} ⇒ ${TARGET_ORGANISATION}/${repository}:${branch}")
+                      errors=$((errors + 1))
+                    fi
+                  else
+                    printf "    ❌ %s\n" "${ANSI_LIGHT_RED}${branch} — doesn't exist in the fork${ANSI_NOCOLOR}"
+                    printf "    ↪ %s\n" "${ANSI_LIGHT_RED}enable 'create-missing-branches' to create it${ANSI_NOCOLOR}"
+                    printf "::error title=%s::%s\n" "Synchronize ${upstream} ⇒ ${TARGET_ORGANISATION}/${repository}:${branch}" "Branch '${branch}' doesn't exist in the fork. Enable 'create-missing-branches' to create it from '${upstream}'."
+                    failures+=("${upstream} ⇒ ${TARGET_ORGANISATION}/${repository}:${branch}")
+                    errors=$((errors + 1))
+                  fi
+                  continue
+                fi
+
                 messages="$("${syncCommand[@]}" 2>&1)"
                 if [[ $? -eq 0 ]]; then
                   printf "    ✅ %s\n" "${syncCommand[*]}"
@@ -237,6 +299,7 @@ runs:
         printf "%s\n" ""
         printf "%s\n"        "${ANSI_CYAN}Summary:${ANSI_NOCOLOR}"
         printf "  %-24s%s\n" "Synchronized branches:" "${synchronized}"
+        printf "  %-24s%s\n" "Created branches:"      "${created}"
         printf "  %-24s%s\n" "Skipped entries:"       "${skipped}"
         printf "  %-24s%s\n" "Errors:"                "${errors}"
 
@@ -247,6 +310,7 @@ runs:
         fi
 
         printf "synchronized=%s\n" "${synchronized}" >> "${GITHUB_OUTPUT}"
+        printf "created=%s\n"      "${created}"      >> "${GITHUB_OUTPUT}"
         printf "skipped=%s\n"      "${skipped}"      >> "${GITHUB_OUTPUT}"
         printf "errors=%s\n"       "${errors}"       >> "${GITHUB_OUTPUT}"
 

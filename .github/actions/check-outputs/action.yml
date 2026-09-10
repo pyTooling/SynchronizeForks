@@ -22,6 +22,10 @@ inputs:
     description: Actual number of synchronized branches.
     type: string
     required: true
+  created:
+    description: Actual number of created branches.
+    type: string
+    required: true
   skipped:
     description: Actual number of skipped entries.
     type: string
@@ -32,6 +36,10 @@ inputs:
     required: true
   expected-synchronized:
     description: Expected number of synchronized branches.
+    type: string
+    required: true
+  expected-created:
+    description: Expected number of created branches.
     type: string
     required: true
   expected-skipped:
@@ -50,9 +58,11 @@ runs:
       shell: bash
       env:
         SYNCHRONIZED:          ${{ inputs.synchronized }}
+        CREATED:               ${{ inputs.created }}
         SKIPPED:               ${{ inputs.skipped }}
         ERRORS:                ${{ inputs.errors }}
         EXPECTED_SYNCHRONIZED: ${{ inputs.expected-synchronized }}
+        EXPECTED_CREATED:      ${{ inputs.expected-created }}
         EXPECTED_SKIPPED:      ${{ inputs.expected-skipped }}
         EXPECTED_ERRORS:       ${{ inputs.expected-errors }}
       run: |
@@ -78,6 +88,7 @@ runs:
         }
 
         checkOutput "synchronized" "${SYNCHRONIZED}" "${EXPECTED_SYNCHRONIZED}"
+        checkOutput "created"      "${CREATED}"      "${EXPECTED_CREATED}"
         checkOutput "skipped"      "${SKIPPED}"      "${EXPECTED_SKIPPED}"
         checkOutput "errors"       "${ERRORS}"       "${EXPECTED_ERRORS}"
 
