@@ -19,7 +19,7 @@ name: 🔄 Synchronize Forked Repositories
 branding:
   icon: refresh-cw
   color: yellow
-description: Synchronize branches and tags of forked repositories of a GitHub organisation or user account with their upstream repositories.
+description: Synchronize branches and tags of forked repositories in a GitHub namespace with their upstream repositories.
 author: Patrick Lehmann (@Paebbels)
 
 inputs:
