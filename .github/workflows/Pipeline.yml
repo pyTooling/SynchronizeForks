@@ -1,0 +1,185 @@
+# The MIT License (MIT)
+#
+# Copyright © 2026 The pyTooling Authors
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+# documentation files (the “Software”), to deal in the Software without restriction, including without limitation the
+# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit
+# persons to whom the Software is furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
+# Software.
+#
+# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+# WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+# COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+# OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+name: Pipeline
+run-name: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+
+on:
+  push:
+  # 'TagReleaseCommit' dispatches this workflow on the tag it created; a tag pushed by the automatic GITHUB_TOKEN
+  # doesn't trigger a workflow on its own.
+  workflow_dispatch:
+
+jobs:
+  Prepare:
+    uses: pyTooling/Actions/.github/workflows/PrepareJob.yml@r8
+
+  DryRun:
+    name: 🐧 Dry-run with a valid configuration
+    runs-on: ubuntu-26.04
+
+    steps:
+      - name: ⏬ Checkout repository to use the local action
+        uses: actions/checkout@v7
+
+      - name: 🔄 Synchronize forked repositories
+        id: synchronize
+        uses: ./
+        with:
+          github-token: ${{ github.token }}
+          target-organisation: Paebbels
+          directory: tests/Valid
+          dry-run: true
+
+      - name: 📋 Verify output parameters
+        uses: ./.github/actions/check-outputs
+        with:
+          synchronized:          ${{ steps.synchronize.outputs.synchronized }}
+          created:               ${{ steps.synchronize.outputs.created }}
+          created-tags:          ${{ steps.synchronize.outputs.created-tags }}
+          skipped:               ${{ steps.synchronize.outputs.skipped }}
+          errors:                ${{ steps.synchronize.outputs.errors }}
+          # 1 branch of 'ghdl' + 1 branch of 'progit2' + 2 branches of 'itertree'
+          expected-synchronized: 4
+          # 1 commented out organisation + 1 commented out repository
+          # Dry-run reads no repository, so no branch is created.
+          expected-created:      0
+          # Dry-run reads no repository, so no tag is created.
+          expected-created-tags: 0
+          expected-skipped:      2
+          expected-errors:       0
+
+  ErrorHandling:
+    name: 🐧 Error handling with an invalid configuration
+    runs-on: ubuntu-26.04
+
+    steps:
+      - name: ⏬ Checkout repository to use the local action
+        uses: actions/checkout@v7
+
+      - name: 🔄 Synchronize forked repositories
+        id: synchronize
+        uses: ./
+        with:
+          github-token: ${{ github.token }}
+          target-organisation: Paebbels
+          directory: tests/Invalid
+          dry-run: true
+          fail-on-error: false
+
+      - name: 📋 Verify output parameters
+        uses: ./.github/actions/check-outputs
+        with:
+          synchronized:          ${{ steps.synchronize.outputs.synchronized }}
+          created:               ${{ steps.synchronize.outputs.created }}
+          created-tags:          ${{ steps.synchronize.outputs.created-tags }}
+          skipped:               ${{ steps.synchronize.outputs.skipped }}
+          errors:                ${{ steps.synchronize.outputs.errors }}
+          expected-synchronized: 1
+          expected-created:      0
+          expected-created-tags: 0
+          expected-skipped:      0
+          # 1 missing 'Missing.repos' + 4 malformed lines in 'ghdl.repos'
+          expected-errors:       5
+
+  FailOnError:
+    name: 🐧 Counted errors let the action fail
+    runs-on: ubuntu-26.04
+
+    steps:
+      - name: ⏬ Checkout repository to use the local action
+        uses: actions/checkout@v7
+
+      - name: 🔄 Synchronize forked repositories
+        id: synchronize
+        continue-on-error: true
+        uses: ./
+        with:
+          github-token: ${{ github.token }}
+          target-organisation: Paebbels
+          directory: tests/Invalid
+          dry-run: true
+
+      - name: 📋 Verify the action failed
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.synchronize.outcome }}
+        run: |
+          # 📋 Verify the action failed
+          set +e
+
+          ANSI_LIGHT_RED=$'\x1b[91m'
+          ANSI_LIGHT_GREEN=$'\x1b[92m'
+          ANSI_NOCOLOR=$'\x1b[0m'
+
+          printf "%s" "Checking the action's outcome ... "
+          if [[ "${OUTCOME}" == "failure" ]]; then
+            printf "%s\n" "${ANSI_LIGHT_GREEN}[PASSED]${ANSI_NOCOLOR} (failure)"
+          else
+            printf "%s\n" "${ANSI_LIGHT_RED}[FAILED]${ANSI_NOCOLOR} (expected 'failure', got '${OUTCOME}')"
+            printf "::error title=%s::%s\n" "FailOnError" "The action's outcome is '${OUTCOME}', but 'failure' was expected."
+            exit 1
+          fi
+
+  # A merge commit on 'main' is a release: tag it with the release pull-request's title and start this pipeline again
+  # on that tag.
+  TriggerTaggedRelease:
+    uses: pyTooling/Actions/.github/workflows/TagReleaseCommit.yml@r8
+    needs:
+      - Prepare
+      - DryRun
+      - ErrorHandling
+      - FailOnError
+    if: needs.Prepare.outputs.is_release_commit == 'true'
+    permissions:
+      contents: write   # required to create the tag
+      actions:  write   # required to start the tagged pipeline
+    with:
+      version:  ${{ needs.Prepare.outputs.version }}
+      auto_tag: ${{ needs.Prepare.outputs.is_release_commit }}
+    secrets: inherit
+
+  # In parallel to the release page: propose the version branch update, so consumers pinning '@v1' can be moved to
+  # this release by merging one pull-request. The workflow is local for now; once it has proven itself here it can be
+  # promoted to pyTooling/Actions.
+  UpdateVersionBranch:
+    uses: ./.github/workflows/UpdateVersionBranch.yml
+    needs:
+      - Prepare
+      - DryRun
+      - ErrorHandling
+      - FailOnError
+    if: needs.Prepare.outputs.is_release_tag == 'true'
+    permissions:
+      contents:      write   # required to create a version branch
+      pull-requests: write   # required to open the pull-request
+    with:
+      version: ${{ needs.Prepare.outputs.version }}
+      prefix:  'v'
+
+  # The tagged run publishes the release page. Its description is the body of the pull-request that produced the
+  # tagged merge commit, which 'PublishReleaseNotes' looks up itself.
+  ReleasePage:
+    uses: pyTooling/Actions/.github/workflows/PublishReleaseNotes.yml@r8
+    needs:
+      - Prepare
+      - DryRun
+      - ErrorHandling
+      - FailOnError
+    if: needs.Prepare.outputs.is_release_tag == 'true'
+    with:
+      tag: ${{ needs.Prepare.outputs.version }}
+    secrets: inherit
