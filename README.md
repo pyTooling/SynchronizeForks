@@ -1,4 +1,4 @@
-[![GitHub Workflow - Build and Test Status](https://img.shields.io/github/actions/workflow/status/pyTooling/SynchronizeForks/.github%2Fworkflows%2FVerification.yml?branch=dev&logo=githubactions)](https://GitHub.com/pyTooling/SynchronizeForks/actions/workflows/Verification.yml)
+[![GitHub Workflow - Build and Test Status](https://img.shields.io/github/actions/workflow/status/pyTooling/SynchronizeForks/.github%2Fworkflows%2FPipeline.yml?branch=dev&logo=githubactions)](https://GitHub.com/pyTooling/SynchronizeForks/actions/workflows/Pipeline.yml)
 [![Sourcecode License](https://img.shields.io/badge/code-MIT%20License-green?longCache=true&style=flat-square&logoColor=fff)](LICENSE.md)
 
 # Synchronize Forks
@@ -287,6 +287,25 @@ The configuration file format is backwards compatible — a line without the tag
 fields are worth a look while converting: `<upstream>` is reported in the progress and error output, so a copied
 placeholder there makes the log name the wrong repository, and adding tag patterns is what stops the fork from drifting
 behind in releases.
+
+## Pipeline
+
+[`Pipeline.yml`](.github/workflows/Pipeline.yml) runs the action against the fixtures in `tests/` in dry-run mode —
+three jobs, no token, no repository touched. Beyond that it releases itself, with reusable workflows from
+[pyTooling/Actions](https://github.com/pyTooling/Actions):
+
+* **`PrepareJob.yml`** classifies the run — which branch or tag, a regular or a merge commit, a release commit or a
+  release tag — so the two jobs below know whether they apply.
+* **`TagReleaseCommit.yml`** turns a merge commit on `main` into a tag named after the release pull-request's title
+  (`v1.0.0`), and starts this pipeline again on that tag. A tag pushed with the automatic `GITHUB_TOKEN` doesn't
+  trigger a workflow, which is why the pipeline is dispatched explicitly — and why this file has to be called
+  `Pipeline.yml`.
+* **`PublishReleaseNotes.yml`** runs on the tagged pipeline, once the same three jobs pass, and publishes the release
+  page. Its description is the body of the pull-request that produced the tagged merge commit; the workflow finds that
+  pull-request from the merge commit itself.
+
+So a release is one merge: open a `dev` → `main` pull-request titled `vMM.mm.pp`, write the release notes in its
+description, and merge it.
 
 ## Dependencies
 
