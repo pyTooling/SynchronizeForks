@@ -200,7 +200,8 @@ progress and error output, so a copied placeholder there makes the log name the 
 ### Credits
 
 This action is the algorithm of [Paebbels/SynchronizeForks](https://github.com/Paebbels/SynchronizeForks), extracted
-from the workflow it lived in.
+from the workflow it lived in. Its copyright is carried over accordingly: Patrick Lehmann from 2024, The pyTooling
+Authors from 2026.
 
 See also: [Syncing a fork](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/syncing-a-fork)
 
