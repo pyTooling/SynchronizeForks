@@ -304,8 +304,27 @@ three jobs, no token, no repository touched. Beyond that it releases itself, wit
   page. Its description is the body of the pull-request that produced the tagged merge commit; the workflow finds that
   pull-request from the merge commit itself.
 
+* **`UpdateVersionBranch.yml`** — a local reusable workflow, running beside the release page. Consumers pin a major
+  version (`pyTooling/SynchronizeForks@v1`), so each release has to move that branch. It opens a pull-request from
+  `main` to `v<major>`, titled `Updating v1 from v1.0.1`, which is reviewed and merged like any other.
+
+  A new major gets a new branch: `v2.0.0` creates `v2` **from `v1`**, not from `main` — a branch created from `main`
+  would already be identical to it, and there would be nothing to open a pull-request about. Adding version branches
+  is therefore just a matter of tagging a new major, and tags come from release pull-request titles.
+
+  The branch prefix is an input, so the same workflow produces `r1` for a repository that names its branches that
+  way. If the version branch is already level with `main`, nothing is opened; if a pull-request from the previous
+  release is still open, it is retitled rather than duplicated.
+
+  **References to this repository are rewritten for the branch.** A workflow, action or badge on `v1` has to
+  reference `v1`, not `main` — otherwise the branch runs someone else's code and its badge shows someone else's
+  status. Where a rewrite is needed, it becomes a commit on an `update/v1` branch and the pull-request is opened from
+  there; where nothing needs rewriting, the pull-request is a plain merge of `main`. Only **self**-references are
+  touched — `pyTooling/Actions@r8` and `actions/checkout@v7` are separate decisions and are left alone.
+
 So a release is one merge: open a `dev` → `main` pull-request titled `vMM.mm.pp`, write the release notes in its
-description, and merge it.
+description, and merge it. What follows is automatic, except for the version-branch pull-request, which waits for a
+review.
 
 ## Dependencies
 
