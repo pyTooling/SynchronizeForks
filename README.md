@@ -50,7 +50,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: 🔄 Synchronize forked repositories
-        uses: pyTooling/SynchronizeForks@main
+        uses: pyTooling/SynchronizeForks@v1
         with:
           github-token: ${{ secrets.GH_TOKEN }}
 ```
@@ -59,8 +59,8 @@ That is the whole workflow. The forks are expected in the namespace the workflow
 (`${{ github.repository_owner }}`) and the configuration files are read from the repository's root directory; see
 [Input Parameters](#input-parameters) to change either.
 
-> [!NOTE]
-> No version tag has been released yet, so the examples reference `@main`. Once released, pin a version tag as usual.
+`@v1` is the major-version branch, moved to each release by the [pipeline](#pipeline). Pin `@v1.0.0` instead to hold
+a single release.
 
 ### The Entry Point: `.ALL.repos`
 
