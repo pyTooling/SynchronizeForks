@@ -316,6 +316,12 @@ three jobs, no token, no repository touched. Beyond that it releases itself, wit
   way. If the version branch is already level with `main`, nothing is opened; if a pull-request from the previous
   release is still open, it is retitled rather than duplicated.
 
+  **References to this repository are rewritten for the branch.** A workflow, action or badge on `v1` has to
+  reference `v1`, not `main` — otherwise the branch runs someone else's code and its badge shows someone else's
+  status. Where a rewrite is needed, it becomes a commit on an `update/v1` branch and the pull-request is opened from
+  there; where nothing needs rewriting, the pull-request is a plain merge of `main`. Only **self**-references are
+  touched — `pyTooling/Actions@r8` and `actions/checkout@v7` are separate decisions and are left alone.
+
 So a release is one merge: open a `dev` → `main` pull-request titled `vMM.mm.pp`, write the release notes in its
 description, and merge it. What follows is automatic, except for the version-branch pull-request, which waits for a
 review.
