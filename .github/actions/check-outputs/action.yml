@@ -1,0 +1,89 @@
+# The MIT License (MIT)
+#
+# Copyright © 2026 The pyTooling Authors
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+# documentation files (the “Software”), to deal in the Software without restriction, including without limitation the
+# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit
+# persons to whom the Software is furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
+# Software.
+#
+# THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+# WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+# COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+# OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+name: Check-Outputs
+description: Check the output parameters of the 'SynchronizeForks' action against their expected values.
+inputs:
+  synchronized:
+    description: Actual number of synchronized branches.
+    type: string
+    required: true
+  skipped:
+    description: Actual number of skipped entries.
+    type: string
+    required: true
+  errors:
+    description: Actual number of errors.
+    type: string
+    required: true
+  expected-synchronized:
+    description: Expected number of synchronized branches.
+    type: string
+    required: true
+  expected-skipped:
+    description: Expected number of skipped entries.
+    type: string
+    required: true
+  expected-errors:
+    description: Expected number of errors.
+    type: string
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: 📋 Verify output parameters
+      shell: bash
+      env:
+        SYNCHRONIZED:          ${{ inputs.synchronized }}
+        SKIPPED:               ${{ inputs.skipped }}
+        ERRORS:                ${{ inputs.errors }}
+        EXPECTED_SYNCHRONIZED: ${{ inputs.expected-synchronized }}
+        EXPECTED_SKIPPED:      ${{ inputs.expected-skipped }}
+        EXPECTED_ERRORS:       ${{ inputs.expected-errors }}
+      run: |
+        # 📋 Verify output parameters
+        set +e
+
+        ANSI_LIGHT_RED=$'\x1b[91m'
+        ANSI_LIGHT_GREEN=$'\x1b[92m'
+        ANSI_NOCOLOR=$'\x1b[0m'
+
+        errors=0
+        checkOutput() {
+          local name="${1}" actual="${2}" expected="${3}"
+
+          printf "%s" "Checking output parameter '${name}' ... "
+          if [[ "${actual}" == "${expected}" ]]; then
+            printf "%s\n" "${ANSI_LIGHT_GREEN}[PASSED]${ANSI_NOCOLOR} (${actual})"
+          else
+            printf "%s\n" "${ANSI_LIGHT_RED}[FAILED]${ANSI_NOCOLOR} (expected '${expected}', got '${actual}')"
+            printf "::error title=%s::%s\n" "check-outputs" "Output parameter '${name}' is '${actual}', but '${expected}' was expected."
+            errors=$((errors + 1))
+          fi
+        }
+
+        checkOutput "synchronized" "${SYNCHRONIZED}" "${EXPECTED_SYNCHRONIZED}"
+        checkOutput "skipped"      "${SKIPPED}"      "${EXPECTED_SKIPPED}"
+        checkOutput "errors"       "${ERRORS}"       "${EXPECTED_ERRORS}"
+
+        printf "%s\n" ""
+        if [[ ${errors} -ne 0 ]]; then
+          printf "%s\n" "${ANSI_LIGHT_RED}Counted ${errors} errors.${ANSI_NOCOLOR}"
+          exit 1
+        else
+          printf "%s\n" "${ANSI_LIGHT_GREEN}No errors found.${ANSI_NOCOLOR}"
+        fi
