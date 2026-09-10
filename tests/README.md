@@ -1,6 +1,6 @@
 # Test Fixtures
 
-Configuration files used by [`Verification.yml`](../.github/workflows/Verification.yml). The action is run in dry-run
+Configuration files used by [`Pipeline.yml`](../.github/workflows/Pipeline.yml). The action is run in dry-run
 mode against them, so no repository is synchronized and no token is needed.
 
 * `Valid` — one organisation, one commented out organisation, four repositories of which one is commented out, and
