@@ -145,7 +145,7 @@ Not synchronized:
 | `directory`           |    no    | `'.'`                            | Directory containing the configuration files.                                                                        |
 | `index-file`          |    no    | `'.ALL.repos'`                   | Name of the index file listing the organisations to be synchronized.                                                 |
 | `force`               |    no    | `false`                          | Hard reset the fork's branch to the upstream branch, discarding commits that aren't in the upstream repository.       |
-| `create-missing-branches` | no   | `true`                           | Create a listed branch that doesn't exist in the fork yet from the upstream repository's branch head.                |
+| `create-missing-branches` | no   | `false`                          | Create a listed branch that doesn't exist in the fork yet from the upstream repository's branch head.                |
 | `dry-run`             |    no    | `false`                          | Print the synchronization commands instead of running them.                                                          |
 | `fail-on-error`       |    no    | `true`                           | Let the action fail if at least one error was counted.                                                               |
 
@@ -167,17 +167,18 @@ so a missing branch isn't detected and `created` stays `0`.
 doesn't have yet — a branch added upstream after the fork was created, or a fork made with *Copy the default branch
 only* — therefore can't be synchronized at all.
 
-The action creates it from the upstream repository's branch head, and the next run synchronizes it like any other
-branch:
+With `create-missing-branches: true`, the action creates it from the upstream repository's branch head, and the next
+run synchronizes it like any other branch:
 
 ```
   📂 OSVVM/AXI4 ⇒ PLC2/OSVVM-AXI4
     🌱 dev — created from OSVVM/AXI4@a1b2c3d
 ```
 
-This is where `<upstream>` stops being decoration: it's the repository the new branch's head is read from. A stale or
-copy-pasted upstream creates a branch from the wrong repository, so check that field before enabling the feature — or
-set `create-missing-branches: false`, which turns a missing branch back into a counted error.
+**It's off by default**, because this is where `<upstream>` stops being decoration: it's the repository the new
+branch's head is read from, and a stale or copy-pasted upstream would create the branch from the wrong repository.
+Check that field, then enable it per repository. While it's disabled, a missing branch is a counted error naming the
+parameter.
 
 No clone, fetch or push is involved. GitHub keeps a fork and its upstream in one object network, so the upstream's
 commit is addressable through the fork and the branch is created with a single API call. If the branch exists in

@@ -59,9 +59,11 @@ inputs:
     description: |
       Create a branch that is listed in an '<organisation>.repos' file, but doesn't exist in the fork yet, from the
       upstream repository's branch head. 'gh repo sync' can only update an existing branch.
+      The branch head is read from '<upstream>', so this is disabled by default: a stale or copy-pasted upstream in a
+      configuration file would create the branch from the wrong repository.
     type: boolean
     required: false
-    default: true
+    default: false
   dry-run:
     description: |
       Print the synchronization commands instead of running them.
