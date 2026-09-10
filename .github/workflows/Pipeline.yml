@@ -153,6 +153,24 @@ jobs:
       auto_tag: ${{ needs.Prepare.outputs.is_release_commit }}
     secrets: inherit
 
+  # In parallel to the release page: propose the version branch update, so consumers pinning '@v1' can be moved to
+  # this release by merging one pull-request. The workflow is local for now; once it has proven itself here it can be
+  # promoted to pyTooling/Actions.
+  UpdateVersionBranch:
+    uses: ./.github/workflows/UpdateVersionBranch.yml
+    needs:
+      - Prepare
+      - DryRun
+      - ErrorHandling
+      - FailOnError
+    if: needs.Prepare.outputs.is_release_tag == 'true'
+    permissions:
+      contents:      write   # required to create a version branch
+      pull-requests: write   # required to open the pull-request
+    with:
+      version: ${{ needs.Prepare.outputs.version }}
+      prefix:  'v'
+
   # The tagged run publishes the release page. Its description is the body of the pull-request that produced the
   # tagged merge commit, which 'PublishReleaseNotes' looks up itself.
   ReleasePage:
