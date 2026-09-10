@@ -120,17 +120,20 @@ Every organisation becomes a collapsible group, and each fork reports the branch
     ✅ gh repo sync PLC2/OSVVM --branch main
     ✅ gh repo sync PLC2/OSVVM --branch dev
   📂 OSVVM/AXI4 ⇒ PLC2/OSVVM-AXI4
-    ❌ gh repo sync PLC2/OSVVM-AXI4 --branch dev
+    🌱 dev — created from OSVVM/AXI4@a1b2c3d
+  📂 OSVVM/Ethernet ⇒ PLC2/OSVVM-Ethernet
+    ❌ gh repo sync PLC2/OSVVM-Ethernet --branch main
     ↪ failed to sync: HTTP 404: Not Found
   🚫 #OSVVM/AvalonST=OSVVM-AvalonST:main
 
 Summary:
   Synchronized branches:  2
+  Created branches:       1
   Skipped entries:        1
   Errors:                 1
 
 Not synchronized:
-  ❌ OSVVM/AXI4 ⇒ PLC2/OSVVM-AXI4:dev
+  ❌ OSVVM/Ethernet ⇒ PLC2/OSVVM-Ethernet:main
 ```
 
 ### Input Parameters
@@ -142,6 +145,7 @@ Not synchronized:
 | `directory`           |    no    | `'.'`                            | Directory containing the configuration files.                                                                        |
 | `index-file`          |    no    | `'.ALL.repos'`                   | Name of the index file listing the organisations to be synchronized.                                                 |
 | `force`               |    no    | `false`                          | Hard reset the fork's branch to the upstream branch, discarding commits that aren't in the upstream repository.       |
+| `create-missing-branches` | no   | `false`                          | Create a listed branch that doesn't exist in the fork yet from the upstream repository's branch head.                |
 | `dry-run`             |    no    | `false`                          | Print the synchronization commands instead of running them.                                                          |
 | `fail-on-error`       |    no    | `true`                           | Let the action fail if at least one error was counted.                                                               |
 
@@ -150,10 +154,35 @@ Not synchronized:
 | Parameter      | Description                                                             |
 |----------------|---------------------------------------------------------------------------|
 | `synchronized` | Number of successfully synchronized branches.                           |
+| `created`      | Number of branches created in a fork.                                   |
 | `skipped`      | Number of skipped organisations and repositories (commented out lines). |
 | `errors`       | Number of counted errors.                                               |
 
-In dry-run mode, `synchronized` counts the branches that *would* have been synchronized.
+In dry-run mode, `synchronized` counts the branches that *would* have been synchronized. Dry-run reads no repository,
+so a missing branch isn't detected and `created` stays `0`.
+
+## Missing Branches
+
+`gh repo sync` updates a branch; it can't create one. A branch listed in an `<organisation>.repos` file that the fork
+doesn't have yet — a branch added upstream after the fork was created, or a fork made with *Copy the default branch
+only* — therefore can't be synchronized at all.
+
+With `create-missing-branches: true`, the action creates it from the upstream repository's branch head, and the next
+run synchronizes it like any other branch:
+
+```
+  📂 OSVVM/AXI4 ⇒ PLC2/OSVVM-AXI4
+    🌱 dev — created from OSVVM/AXI4@a1b2c3d
+```
+
+**It's off by default**, because this is where `<upstream>` stops being decoration: it's the repository the new
+branch's head is read from, and a stale or copy-pasted upstream would create the branch from the wrong repository.
+Check that field, then enable it per repository. While it's disabled, a missing branch is a counted error naming the
+parameter.
+
+No clone, fetch or push is involved. GitHub keeps a fork and its upstream in one object network, so the upstream's
+commit is addressable through the fork and the branch is created with a single API call. If the branch exists in
+neither repository — usually a typo in the configuration file — it's a counted error.
 
 ## Error Handling
 
@@ -164,7 +193,9 @@ Each of these is counted, reported as a GitHub Actions error annotation, and let
 * an `<organisation>.repos` file listed in the index file doesn't exist,
 * a repository line is malformed — no `=`, no `:`, or an empty `<upstream>`, `<fork>` or branch list,
 * `gh repo sync` fails for a fork's branch. Its output is quoted below the failed command, and the annotation names the
-  upstream repository, the fork and the branch.
+  upstream repository, the fork and the branch,
+* a branch exists neither in the fork nor in the upstream repository, or creating it fails,
+* a branch is missing from the fork while `create-missing-branches` is disabled.
 
 A failing fork doesn't stop the run: every other fork is still synchronized, and the summary lists what wasn't.
 
