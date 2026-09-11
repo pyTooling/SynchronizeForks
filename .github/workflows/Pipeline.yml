@@ -27,8 +27,6 @@ jobs:
   Prepare:
     uses: pyTooling/Actions/.github/workflows/PrepareJob.yml@r8
 
-  # The Marketplace form rejects metadata rather than explaining it, and only at publish time. This says no on 'dev'
-  # instead.
   Marketplace:
     uses: ./.github/workflows/CheckMarketplaceMetadata.yml
 
