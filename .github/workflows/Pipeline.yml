@@ -27,6 +27,9 @@ jobs:
   Prepare:
     uses: pyTooling/Actions/.github/workflows/PrepareJob.yml@r8
 
+  Marketplace:
+    uses: ./.github/workflows/CheckMarketplaceMetadata.yml
+
   DryRun:
     name: 🐧 Dry-run with a valid configuration
     runs-on: ubuntu-26.04
@@ -140,6 +143,7 @@ jobs:
     uses: pyTooling/Actions/.github/workflows/TagReleaseCommit.yml@r8
     needs:
       - Prepare
+      - Marketplace
       - DryRun
       - ErrorHandling
       - FailOnError
@@ -159,6 +163,7 @@ jobs:
     uses: ./.github/workflows/UpdateVersionBranch.yml
     needs:
       - Prepare
+      - Marketplace
       - DryRun
       - ErrorHandling
       - FailOnError
@@ -176,6 +181,7 @@ jobs:
     uses: pyTooling/Actions/.github/workflows/PublishReleaseNotes.yml@r8
     needs:
       - Prepare
+      - Marketplace
       - DryRun
       - ErrorHandling
       - FailOnError

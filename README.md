@@ -322,6 +322,16 @@ three jobs, no token, no repository touched. Beyond that it releases itself, wit
   there; where nothing needs rewriting, the pull-request is a plain merge of `main`. Only **self**-references are
   touched — `pyTooling/Actions@r8` and `actions/checkout@v7` are separate decisions and are left alone.
 
+* **`CheckMarketplaceMetadata.yml`** — a local reusable workflow validating `action.yml` against the
+  [Marketplace](https://github.com/marketplace?type=actions) rules on every push: the metadata file at the repository
+  root, a name, a description shorter than 125 characters, a branding icon and one of the eight accepted branding
+  colours, and a public repository.
+
+  **Publishing itself stays manual.** There is no API for it — an action is listed by ticking *Publish this Action to
+  the GitHub Marketplace* while drafting or editing its release. A tag carries exactly one release, and the
+  Marketplace listing is a property of that release, not a second one, so an already-published release is **edited**
+  rather than re-created.
+
 So a release is one merge: open a `dev` → `main` pull-request titled `vMM.mm.pp`, write the release notes in its
 description, and merge it. What follows is automatic, except for the version-branch pull-request, which waits for a
 review.
