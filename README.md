@@ -1,4 +1,4 @@
-[![GitHub Workflow - Build and Test Status](https://img.shields.io/github/actions/workflow/status/pyTooling/SynchronizeForks/.github%2Fworkflows%2FPipeline.yml?branch=dev&logo=githubactions)](https://GitHub.com/pyTooling/SynchronizeForks/actions/workflows/Pipeline.yml)
+[![GitHub Workflow - Build and Test Status](https://img.shields.io/github/actions/workflow/status/pyTooling/SynchronizeForks/.github%2Fworkflows%2FPipeline.yml?branch=v1&logo=githubactions)](https://GitHub.com/pyTooling/SynchronizeForks/actions/workflows/Pipeline.yml)
 [![Sourcecode License](https://img.shields.io/badge/code-MIT%20License-green?longCache=true&style=flat-square&logoColor=fff)](LICENSE.md)
 
 # Synchronize Forks
